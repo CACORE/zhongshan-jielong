@@ -25,7 +25,7 @@
 
 ## 發布 GitHub Pages
 
-1. 在 GitHub 建立公開 repository，例如 `hao-jielong`。
+1. 在 GitHub 建立公開 repository，例如 `zhongshan-jielong`。
 2. 將本資料夾全部檔案推送到 `main` 分支。
 3. 到 repository 的 Settings → Pages。
 4. Source 選 `Deploy from a branch`。
@@ -33,7 +33,7 @@
 
 稍候 GitHub 會提供公開網址：
 
-`https://你的帳號.github.io/hao-jielong/`
+`https://你的帳號.github.io/zhongshan-jielong/`
 
 ## 資料結構
 
