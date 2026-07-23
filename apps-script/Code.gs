@@ -10,7 +10,8 @@ const EVENT_HEADERS = [
 ];
 
 const RESPONSE_HEADERS = [
-  "id", "eventId", "memberId", "response", "companionCount", "note", "updatedAt"
+  "id", "eventId", "memberId", "response", "companionCount", "note", "updatedAt",
+  "memberName", "isTemporary"
 ];
 
 function setup() {
@@ -88,6 +89,17 @@ function ensureSheet_(spreadsheet, name, headers) {
       .setBackground("#102b4e")
       .setFontColor("#ffffff");
     sheet.autoResizeColumns(1, headers.length);
+  } else {
+    const currentHeaders = sheet
+      .getRange(1, 1, 1, Math.max(sheet.getLastColumn(), headers.length))
+      .getDisplayValues()[0];
+    headers.forEach((header, index) => {
+      if (currentHeaders[index] !== header) sheet.getRange(1, index + 1).setValue(header);
+    });
+    sheet.getRange(1, 1, 1, headers.length)
+      .setFontWeight("bold")
+      .setBackground("#102b4e")
+      .setFontColor("#ffffff");
   }
   return sheet;
 }
@@ -134,7 +146,9 @@ function normalizeEvent_(event) {
 function normalizeResponse_(response) {
   return {
     ...response,
-    companionCount: Number(response.companionCount || 0)
+    companionCount: Number(response.companionCount || 0),
+    memberName: clean_(response.memberName),
+    isTemporary: String(response.isTemporary).toLowerCase() === "true"
   };
 }
 
@@ -190,6 +204,9 @@ function saveResponse_(payload) {
   const eventId = clean_(payload.eventId);
   const memberId = clean_(payload.memberId);
   const response = clean_(payload.response);
+  const memberName = clean_(payload.memberName);
+  const isTemporary = payload.isTemporary === true ||
+    clean_(payload.isTemporary).toLowerCase() === "true";
   if (!eventId || !memberId || !["attending", "declined"].includes(response)) {
     throw new Error("回覆資料不完整");
   }
@@ -197,7 +214,10 @@ function saveResponse_(payload) {
   const spreadsheet = getSpreadsheet_();
   ensureDataSheets_(spreadsheet);
   const members = readMembers_(spreadsheet);
-  if (!members.some(member => member.id === memberId)) throw new Error("找不到這位社友");
+  if (isTemporary && !memberName) throw new Error("請填寫臨時人員英文名");
+  if (!isTemporary && !members.some(member => member.id === memberId)) {
+    throw new Error("找不到這位社友");
+  }
   const events = readObjects_(spreadsheet.getSheetByName(EVENT_SHEET), EVENT_HEADERS);
   if (!events.some(event => event.id === eventId)) throw new Error("找不到這個活動");
 
@@ -211,7 +231,9 @@ function saveResponse_(payload) {
     response,
     companionCount: response === "attending" ? Math.max(0, Math.min(4, Number(payload.companionCount || 0))) : 0,
     note: clean_(payload.note),
-    updatedAt: new Date().toISOString()
+    updatedAt: new Date().toISOString(),
+    memberName: isTemporary ? memberName : "",
+    isTemporary
   };
   upsertById_(sheet, RESPONSE_HEADERS, object, object.id);
   return { id: object.id };
