@@ -25,7 +25,7 @@ body {
   font-family: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
 }
 button, input, select, textarea { font: inherit; }
-button { cursor: pointer; }
+button { cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
 button:disabled { cursor: wait; opacity: .55; }
 main { width: 100%; min-height: 100vh; overflow-x: hidden; }
 
@@ -246,13 +246,14 @@ footer p { margin: 0; color: var(--muted); font-size: 10px; }
 }
 
 @media (max-width: 560px) {
+  body { background: #f5f4ef; }
   .topbar { height: 76px; }
   .brand small, .ghost-button { display: none; }
   .create-button { padding: 9px 12px; }
   .hero { margin-bottom: 22px; }
   .meeting-meta { display: grid; gap: 16px; }
-  .speaker-card { min-height: 250px; padding: 27px; }
-  .checklist-card { padding: 24px 15px; }
+  .speaker-card { min-height: 250px; padding: 27px; box-shadow: none; }
+  .checklist-card { padding: 24px 15px; box-shadow: none; }
   .member-list { max-height: 62vh; padding-right: 5px; }
   .member-row { grid-template-columns: 0 42px 1fr; gap: 10px; padding: 16px 0; }
   .member-number { overflow: hidden; }
@@ -260,6 +261,8 @@ footer p { margin: 0; color: var(--muted); font-size: 10px; }
   .member-actions { grid-column: 2 / -1; display: grid; grid-template-columns: 1fr 1fr; width: 100%; }
   .member-actions button { min-height: 58px; font-size: 17px; }
   .member-actions .details-button { grid-column: 1 / -1; }
+  .summary-card { box-shadow: none; }
+  .overlay { backdrop-filter: none; -webkit-backdrop-filter: none; }
   .upcoming-grid { grid-template-columns: 1fr; }
   footer { align-items: flex-start; gap: 20px; }
   footer > p { max-width: 150px; text-align: right; line-height: 1.6; }

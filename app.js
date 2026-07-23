@@ -56,6 +56,10 @@
     flash.timer = window.setTimeout(() => elements.toast.classList.add("hidden"), 3200);
   }
 
+  function nextPaint() {
+    return new Promise((resolve) => window.requestAnimationFrame(() => resolve()));
+  }
+
   function setLoading(loading) {
     elements.loadingBar.classList.toggle("hidden", !loading);
   }
@@ -218,8 +222,31 @@
       : "未設定回覆截止時間";
   }
 
+  function memberRowHtml(member, index) {
+    const current = registrationFor(member.id);
+    const status = current?.response || "pending";
+    const subtitle = !current
+      ? "尚未回覆"
+      : current.response === "attending"
+        ? `已參加${Number(current.companionCount) ? ` · 攜伴 ${current.companionCount} 位` : ""}`
+        : "不克參加";
+    return `
+      <article class="member-row ${status}" data-member-id="${escapeHtml(member.id)}">
+        <span class="member-number">${String(index + 1).padStart(2, "0")}</span>
+        <span class="member-avatar">${escapeHtml(member.displayName.slice(0, 1).toUpperCase())}</span>
+        <div class="member-name">
+          <strong>${escapeHtml(member.displayName)}</strong>
+          <small>${escapeHtml(subtitle)}</small>
+        </div>
+        <div class="member-actions">
+          <button class="attend ${current?.response === "attending" ? "selected" : ""}" data-response="attending" type="button">✓ 參加</button>
+          <button class="decline ${current?.response === "declined" ? "selected" : ""}" data-response="declined" type="button">— 不克</button>
+          ${current?.response === "attending" ? '<button class="details-button" data-details type="button">＋ 是否攜伴及備註</button>' : ""}
+        </div>
+      </article>`;
+  }
+
   function renderMembers() {
-    const scrollTop = elements.memberList.scrollTop;
     if (!state.members.length) {
       elements.memberList.innerHTML = '<div class="empty-state">Google Sheet 的「工作表1」目前沒有社友名稱。</div>';
       return;
@@ -228,30 +255,18 @@
       elements.memberList.innerHTML = '<div class="empty-state">建立第一個活動後，就能開始勾選名單。</div>';
       return;
     }
-    elements.memberList.innerHTML = state.members.map((member, index) => {
-      const current = registrationFor(member.id);
-      const status = current?.response || "pending";
-      const subtitle = !current
-        ? "尚未回覆"
-        : current.response === "attending"
-          ? `已參加${Number(current.companionCount) ? ` · 攜伴 ${current.companionCount} 位` : ""}`
-          : "不克參加";
-      return `
-        <article class="member-row ${status}" data-member-id="${escapeHtml(member.id)}">
-          <span class="member-number">${String(index + 1).padStart(2, "0")}</span>
-          <span class="member-avatar">${escapeHtml(member.displayName.slice(0, 1).toUpperCase())}</span>
-          <div class="member-name">
-            <strong>${escapeHtml(member.displayName)}</strong>
-            <small>${escapeHtml(subtitle)}</small>
-          </div>
-          <div class="member-actions">
-            <button class="attend ${current?.response === "attending" ? "selected" : ""}" data-response="attending" type="button">✓ 參加</button>
-            <button class="decline ${current?.response === "declined" ? "selected" : ""}" data-response="declined" type="button">— 不克</button>
-            ${current?.response === "attending" ? '<button class="details-button" data-details type="button">＋ 是否攜伴及備註</button>' : ""}
-          </div>
-        </article>`;
-    }).join("");
-    elements.memberList.scrollTop = scrollTop;
+    elements.memberList.innerHTML = state.members.map(memberRowHtml).join("");
+  }
+
+  function renderMemberRow(memberId) {
+    const index = state.members.findIndex((member) => member.id === memberId);
+    if (index < 0) return;
+    const row = Array.from(elements.memberList.querySelectorAll("[data-member-id]"))
+      .find((item) => item.dataset.memberId === memberId);
+    if (!row) return renderMembers();
+    const template = document.createElement("template");
+    template.innerHTML = memberRowHtml(state.members[index], index).trim();
+    row.replaceWith(template.content.firstElementChild);
   }
 
   function renderSummary() {
@@ -304,7 +319,7 @@
 
     state.pendingMemberIds.add(memberId);
     replaceRegistration(event.id, memberId, optimistic);
-    renderMembers();
+    renderMemberRow(memberId);
     renderSummary();
     flash(
       removing
@@ -313,6 +328,7 @@
     );
 
     try {
+      await nextPaint();
       if (removing) {
         await apiPost("removeResponse", { eventId: event.id, memberId });
       } else {
@@ -326,7 +342,7 @@
       }
     } catch (error) {
       replaceRegistration(event.id, memberId, previous);
-      renderMembers();
+      renderMemberRow(memberId);
       renderSummary();
       flash("同步失敗，已還原勾選，請再試一次");
     } finally {
@@ -456,11 +472,12 @@
     state.pendingMemberIds.add(values.memberId);
     replaceRegistration(eventData.id, values.memberId, optimistic);
     elements.detailsDialog.classList.add("hidden");
-    renderMembers();
+    renderMemberRow(values.memberId);
     renderSummary();
     flash("攜伴及備註已更新");
 
     try {
+      await nextPaint();
       await apiPost("saveResponse", {
         eventId: eventData.id,
         memberId: values.memberId,
@@ -470,7 +487,7 @@
       });
     } catch (error) {
       replaceRegistration(eventData.id, values.memberId, previous ? { ...previous } : null);
-      renderMembers();
+      renderMemberRow(values.memberId);
       renderSummary();
       flash("同步失敗，已還原攜伴及備註，請再試一次");
     } finally {
