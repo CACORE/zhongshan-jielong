@@ -8,6 +8,7 @@
     registrations: [],
     selectedEventId: "",
     pendingMemberIds: new Set(),
+    lastServerFingerprint: "",
   };
 
   const $ = (selector) => document.querySelector(selector);
@@ -115,6 +116,14 @@
     else state.registrations.push(registration);
   }
 
+  function serverFingerprint(data) {
+    return JSON.stringify([
+      Array.isArray(data.members) ? data.members : [],
+      Array.isArray(data.events) ? data.events : [],
+      Array.isArray(data.registrations) ? data.registrations : [],
+    ]);
+  }
+
   async function apiGet() {
     return new Promise((resolve, reject) => {
       const callbackName = `haoJielongCallback_${Date.now()}_${Math.random().toString(36).slice(2)}`;
@@ -191,6 +200,7 @@
       if (preferredEventId) state.selectedEventId = preferredEventId;
       const data = await apiGet();
       if (!data.ok) throw new Error(data.error || "資料載入失敗");
+      state.lastServerFingerprint = serverFingerprint(data);
       normalizeData(data);
       updateUrl();
       render();
@@ -200,6 +210,35 @@
     } finally {
       setLoading(false);
     }
+  }
+
+  async function refreshInBackground() {
+    if (
+      document.hidden ||
+      state.pendingMemberIds.size > 0 ||
+      !API_URL ||
+      API_URL.includes("PASTE_YOUR")
+    ) return;
+    try {
+      const data = await apiGet();
+      if (!data.ok || state.pendingMemberIds.size > 0) return;
+      const fingerprint = serverFingerprint(data);
+      if (fingerprint === state.lastServerFingerprint) return;
+      state.lastServerFingerprint = fingerprint;
+      normalizeData(data);
+      updateUrl();
+      render();
+    } catch {
+      // 背景同步失敗時保留目前畫面，下次排程再重試。
+    }
+  }
+
+  let backgroundRefreshTimeout = 0;
+  function scheduleBackgroundRefresh() {
+    window.clearTimeout(backgroundRefreshTimeout);
+    backgroundRefreshTimeout = window.setTimeout(() => {
+      void refreshInBackground();
+    }, 250);
   }
 
   function updateUrl() {
@@ -267,6 +306,7 @@
   }
 
   function renderMembers() {
+    const scrollTop = elements.memberList.scrollTop;
     if (!state.members.length) {
       elements.memberList.innerHTML = '<div class="empty-state">Google Sheet 的「工作表1」目前沒有社友名稱。</div>';
       return;
@@ -282,6 +322,7 @@
         <strong>新增臨時人員</strong>
         <small>其他扶輪社社員或臨時來賓</small>
       </button>`;
+    elements.memberList.scrollTop = scrollTop;
   }
 
   function renderMemberRow(memberId) {
@@ -623,6 +664,12 @@
   $("#editButton").addEventListener("click", () => currentEvent() ? openEventForm(currentEvent()) : openEventForm(null));
   $("#shareButton").addEventListener("click", share);
   $("#copySummaryButton").addEventListener("click", share);
+
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) scheduleBackgroundRefresh();
+  });
+  window.addEventListener("focus", scheduleBackgroundRefresh);
+  window.setInterval(() => void refreshInBackground(), 15000);
 
   void loadAll();
 })();
