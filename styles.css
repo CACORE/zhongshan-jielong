@@ -142,6 +142,7 @@ h1 {
 }
 .member-row.attending .member-avatar { background: #d9eee3; color: var(--green); }
 .member-row.declined .member-avatar { background: #f0ded9; color: var(--red); }
+.member-row.temporary .member-avatar { border: 2px solid var(--gold); }
 .member-name { min-width: 0; display: grid; gap: 3px; }
 .member-name strong { color: var(--navy-deep); font-size: 22px; }
 .member-name small { color: var(--muted); font-size: 11px; }
@@ -153,6 +154,18 @@ h1 {
 .member-actions .attend.selected { border-color: var(--green); background: var(--green); color: white; }
 .member-actions .decline.selected { border-color: var(--red); background: var(--red); color: white; }
 .member-actions .details-button { width: 100%; color: var(--blue); }
+.temporary-member-button {
+  width: 100%; min-height: 86px; margin-top: 12px; padding: 14px;
+  display: grid; grid-template-columns: 42px 1fr; column-gap: 12px; align-items: center;
+  border: 1px dashed #9eacb3; border-radius: 15px; background: #f7f8f6;
+  color: var(--navy); text-align: left;
+}
+.temporary-member-button > span {
+  width: 42px; height: 42px; grid-row: span 2; display: grid; place-items: center;
+  border-radius: 50%; background: var(--navy); color: white; font-size: 22px;
+}
+.temporary-member-button strong { align-self: end; font-size: 15px; }
+.temporary-member-button small { align-self: start; color: var(--muted); font-size: 11px; }
 .empty-state { min-height: 180px; display: grid; place-items: center; color: var(--muted); text-align: center; }
 
 .summary-card {

@@ -28,6 +28,8 @@
     deadlineCopy: $("#deadlineCopy"),
     detailsDialog: $("#detailsDialog"),
     detailsForm: $("#detailsForm"),
+    temporaryDialog: $("#temporaryDialog"),
+    temporaryForm: $("#temporaryForm"),
     eventDialog: $("#eventDialog"),
     eventForm: $("#eventForm"),
     eventFormTitle: $("#eventFormTitle"),
@@ -90,6 +92,17 @@
     return currentRegistrations().find((item) => item.memberId === memberId);
   }
 
+  function displayedMembers() {
+    const temporaryMembers = currentRegistrations()
+      .filter((item) => item.isTemporary && item.memberName)
+      .map((item) => ({
+        id: item.memberId,
+        displayName: item.memberName,
+        isTemporary: true,
+      }));
+    return [...state.members, ...temporaryMembers];
+  }
+
   function replaceRegistration(eventId, memberId, registration) {
     const index = state.registrations.findIndex(
       (item) => item.eventId === eventId && item.memberId === memberId
@@ -142,7 +155,13 @@
   function normalizeData(data) {
     state.members = Array.isArray(data.members) ? data.members : [];
     state.events = Array.isArray(data.events) ? data.events : [];
-    state.registrations = Array.isArray(data.registrations) ? data.registrations : [];
+    state.registrations = Array.isArray(data.registrations)
+      ? data.registrations.map((item) => ({
+          ...item,
+          companionCount: Number(item.companionCount || 0),
+          isTemporary: item.isTemporary === true || String(item.isTemporary).toLowerCase() === "true",
+        }))
+      : [];
 
     state.members.sort((a, b) => strokeOrder.compare(a.displayName, b.displayName));
     const today = new Date().toISOString().slice(0, 10);
@@ -225,13 +244,14 @@
   function memberRowHtml(member, index) {
     const current = registrationFor(member.id);
     const status = current?.response || "pending";
-    const subtitle = !current
+    const responseLabel = !current
       ? "尚未回覆"
       : current.response === "attending"
         ? `已參加${Number(current.companionCount) ? ` · 攜伴 ${current.companionCount} 位` : ""}`
         : "不克參加";
+    const subtitle = member.isTemporary ? `臨時人員 · ${responseLabel}` : responseLabel;
     return `
-      <article class="member-row ${status}" data-member-id="${escapeHtml(member.id)}">
+      <article class="member-row ${status} ${member.isTemporary ? "temporary" : ""}" data-member-id="${escapeHtml(member.id)}">
         <span class="member-number">${String(index + 1).padStart(2, "0")}</span>
         <span class="member-avatar">${escapeHtml(member.displayName.slice(0, 1).toUpperCase())}</span>
         <div class="member-name">
@@ -255,17 +275,27 @@
       elements.memberList.innerHTML = '<div class="empty-state">建立第一個活動後，就能開始勾選名單。</div>';
       return;
     }
-    elements.memberList.innerHTML = state.members.map(memberRowHtml).join("");
+    elements.memberList.innerHTML = `
+      ${displayedMembers().map(memberRowHtml).join("")}
+      <button class="temporary-member-button" id="addTemporaryMemberButton" type="button">
+        <span>＋</span>
+        <strong>新增臨時人員</strong>
+        <small>其他扶輪社社員或臨時來賓</small>
+      </button>`;
   }
 
   function renderMemberRow(memberId) {
-    const index = state.members.findIndex((member) => member.id === memberId);
-    if (index < 0) return;
+    const members = displayedMembers();
+    const index = members.findIndex((member) => member.id === memberId);
     const row = Array.from(elements.memberList.querySelectorAll("[data-member-id]"))
       .find((item) => item.dataset.memberId === memberId);
+    if (index < 0) {
+      if (row) row.remove();
+      return;
+    }
     if (!row) return renderMembers();
     const template = document.createElement("template");
-    template.innerHTML = memberRowHtml(state.members[index], index).trim();
+    template.innerHTML = memberRowHtml(members[index], index).trim();
     row.replaceWith(template.content.firstElementChild);
   }
 
@@ -274,9 +304,10 @@
     const attending = responses.filter((item) => item.response === "attending");
     const declined = responses.filter((item) => item.response === "declined");
     const companions = attending.reduce((total, item) => total + Number(item.companionCount || 0), 0);
+    const permanentResponses = responses.filter((item) => !item.isTemporary);
     elements.attendingCount.textContent = attending.length;
     elements.declinedCount.textContent = declined.length;
-    elements.pendingCount.textContent = Math.max(0, state.members.length - responses.length);
+    elements.pendingCount.textContent = Math.max(0, state.members.length - permanentResponses.length);
     elements.companionCount.textContent = companions;
   }
 
@@ -300,7 +331,7 @@
 
   async function handleResponse(memberId, response) {
     const event = currentEvent();
-    const member = state.members.find((item) => item.id === memberId);
+    const member = displayedMembers().find((item) => item.id === memberId);
     if (!event || !member || state.pendingMemberIds.has(memberId)) return;
     const current = registrationFor(memberId);
     const previous = current ? { ...current } : null;
@@ -314,6 +345,8 @@
           response,
           companionCount: response === "attending" ? Number(current?.companionCount || 0) : 0,
           note: current?.note || "",
+          memberName: member.isTemporary ? member.displayName : "",
+          isTemporary: Boolean(member.isTemporary),
           updatedAt: new Date().toISOString(),
         };
 
@@ -338,6 +371,8 @@
           response,
           companionCount: optimistic.companionCount,
           note: optimistic.note,
+          memberName: optimistic.memberName,
+          isTemporary: optimistic.isTemporary,
         });
       }
     } catch (error) {
@@ -351,7 +386,7 @@
   }
 
   function openDetails(memberId) {
-    const member = state.members.find((item) => item.id === memberId);
+    const member = displayedMembers().find((item) => item.id === memberId);
     const current = registrationFor(memberId);
     if (!member || !current) return;
     elements.detailsForm.elements.memberId.value = memberId;
@@ -359,6 +394,54 @@
     elements.detailsForm.elements.note.value = current.note || "";
     $("#detailsTitle").textContent = `${member.displayName} 是否攜伴及備註`;
     elements.detailsDialog.classList.remove("hidden");
+  }
+
+  function openTemporaryForm() {
+    if (!currentEvent()) return flash("請先建立活動");
+    elements.temporaryForm.reset();
+    elements.temporaryDialog.classList.remove("hidden");
+    window.setTimeout(() => elements.temporaryForm.elements.memberName.focus(), 0);
+  }
+
+  async function saveTemporaryMember(form) {
+    const eventData = currentEvent();
+    const values = Object.fromEntries(new FormData(form).entries());
+    const memberName = String(values.memberName || "").trim();
+    if (!eventData || !memberName) throw new Error("請填寫臨時人員英文名");
+
+    const memberId = crypto.randomUUID
+      ? `temporary-${crypto.randomUUID()}`
+      : `temporary-${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`;
+    const registration = {
+      id: `pending-${eventData.id}-${memberId}`,
+      eventId: eventData.id,
+      memberId,
+      response: "attending",
+      companionCount: 0,
+      note: String(values.note || "").trim(),
+      memberName,
+      isTemporary: true,
+      updatedAt: new Date().toISOString(),
+    };
+
+    state.pendingMemberIds.add(memberId);
+    replaceRegistration(eventData.id, memberId, registration);
+    elements.temporaryDialog.classList.add("hidden");
+    renderMembers();
+    renderSummary();
+    flash(`${memberName} 已新增為臨時人員`);
+
+    try {
+      await nextPaint();
+      await apiPost("saveResponse", registration);
+    } catch (error) {
+      replaceRegistration(eventData.id, memberId, null);
+      renderMembers();
+      renderSummary();
+      flash("同步失敗，未能新增臨時人員，請再試一次");
+    } finally {
+      state.pendingMemberIds.delete(memberId);
+    }
   }
 
   function nextThursday() {
@@ -413,7 +496,8 @@
     const responses = currentRegistrations();
     const attending = responses.filter((item) => item.response === "attending").length;
     const declined = responses.filter((item) => item.response === "declined").length;
-    const pending = Math.max(0, state.members.length - responses.length);
+    const permanentResponses = responses.filter((item) => !item.isTemporary).length;
+    const pending = Math.max(0, state.members.length - permanentResponses);
     return `【${event.title}｜請勾選出席】\n📅 ${dateRangeLabel(event.date, event.endDate)} ${event.startTime}${event.endTime ? `–${event.endTime}` : ""}\n📍 ${event.location}\n\n參加 ${attending}｜不克 ${declined}｜尚未回覆 ${pending}\n請點連結找到英文名字，直接勾選：\n${location.href}`;
   }
 
@@ -433,6 +517,10 @@
   }
 
   elements.memberList.addEventListener("click", (event) => {
+    if (event.target.closest("#addTemporaryMemberButton")) {
+      openTemporaryForm();
+      return;
+    }
     const row = event.target.closest("[data-member-id]");
     if (!row) return;
     const memberId = row.dataset.memberId;
@@ -452,6 +540,19 @@
     if (event.target.closest("#bottomCreateButton")) openEventForm(null);
   });
 
+  elements.temporaryForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const button = event.currentTarget.querySelector('[type="submit"]');
+    button.disabled = true;
+    try {
+      await saveTemporaryMember(event.currentTarget);
+    } catch (error) {
+      flash(error instanceof Error ? error.message : "新增失敗");
+    } finally {
+      button.disabled = false;
+    }
+  });
+
   elements.detailsForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     const eventData = currentEvent();
@@ -466,6 +567,8 @@
       response: "attending",
       companionCount: Number(values.companionCount),
       note: values.note,
+      memberName: previous?.memberName || "",
+      isTemporary: Boolean(previous?.isTemporary),
       updatedAt: new Date().toISOString(),
     };
 
@@ -484,6 +587,8 @@
         response: "attending",
         companionCount: Number(values.companionCount),
         note: values.note,
+        memberName: optimistic.memberName,
+        isTemporary: optimistic.isTemporary,
       });
     } catch (error) {
       replaceRegistration(eventData.id, values.memberId, previous ? { ...previous } : null);

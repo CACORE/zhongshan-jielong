@@ -7,7 +7,7 @@
   <meta name="robots" content="noindex, nofollow">
   <meta name="theme-color" content="#102b4e">
   <title>中山社接龍｜台北中山扶輪社</title>
-  <link rel="stylesheet" href="./styles.css?v=20260723-2">
+  <link rel="stylesheet" href="./styles.css?v=20260723-3">
 </head>
 <body>
   <main>
@@ -108,9 +108,24 @@
         </select>
       </label>
       <label>備註
-        <textarea name="note" placeholder="例如飲食需求、晚到或提早離席。"></textarea>
+        <textarea name="note" placeholder="例如飲食需求、晚到或提早離席；若攜伴請提供英文名。"></textarea>
       </label>
       <button class="submit-button" type="submit">儲存</button>
+    </form>
+  </div>
+
+  <div class="overlay hidden" id="temporaryDialog" role="dialog" aria-modal="true" aria-labelledby="temporaryTitle">
+    <form class="sheet" id="temporaryForm">
+      <button type="button" class="close" data-close="temporaryDialog" aria-label="關閉">×</button>
+      <p class="overline">TEMPORARY MEMBER</p>
+      <h2 id="temporaryTitle">新增臨時人員</h2>
+      <label>英文名字
+        <input name="memberName" autocomplete="off" placeholder="例如 Peter" required>
+      </label>
+      <label>備註
+        <textarea name="note" placeholder="例如所屬扶輪社或其他說明。"></textarea>
+      </label>
+      <button class="submit-button" type="submit">新增並勾選參加</button>
     </form>
   </div>
 
@@ -152,7 +167,7 @@
   <div class="toast hidden" id="toast" role="status"></div>
   <div class="loading-bar hidden" id="loadingBar"></div>
 
-  <script src="./config.js?v=20260723-2"></script>
-  <script src="./app.js?v=20260723-2"></script>
+  <script src="./config.js?v=20260723-3"></script>
+  <script src="./app.js?v=20260723-3"></script>
 </body>
 </html>
