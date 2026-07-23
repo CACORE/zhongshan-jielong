@@ -7,7 +7,7 @@
     events: [],
     registrations: [],
     selectedEventId: "",
-    busyMemberId: "",
+    pendingMemberIds: new Set(),
   };
 
   const $ = (selector) => document.querySelector(selector);
@@ -86,6 +86,18 @@
     return currentRegistrations().find((item) => item.memberId === memberId);
   }
 
+  function replaceRegistration(eventId, memberId, registration) {
+    const index = state.registrations.findIndex(
+      (item) => item.eventId === eventId && item.memberId === memberId
+    );
+    if (!registration) {
+      if (index >= 0) state.registrations.splice(index, 1);
+      return;
+    }
+    if (index >= 0) state.registrations[index] = registration;
+    else state.registrations.push(registration);
+  }
+
   async function apiGet() {
     return new Promise((resolve, reject) => {
       const callbackName = `haoJielongCallback_${Date.now()}_${Math.random().toString(36).slice(2)}`;
@@ -118,8 +130,8 @@
       body: JSON.stringify({ action, ...payload }),
       mode: "no-cors",
       redirect: "follow",
+      keepalive: true,
     });
-    await new Promise((resolve) => window.setTimeout(resolve, 450));
     return { ok: true, id: payload.id || "" };
   }
 
@@ -207,6 +219,7 @@
   }
 
   function renderMembers() {
+    const scrollTop = elements.memberList.scrollTop;
     if (!state.members.length) {
       elements.memberList.innerHTML = '<div class="empty-state">Google Sheet 的「工作表1」目前沒有社友名稱。</div>';
       return;
@@ -238,6 +251,7 @@
           </div>
         </article>`;
     }).join("");
+    elements.memberList.scrollTop = scrollTop;
   }
 
   function renderSummary() {
@@ -272,30 +286,51 @@
   async function handleResponse(memberId, response) {
     const event = currentEvent();
     const member = state.members.find((item) => item.id === memberId);
-    if (!event || !member || state.busyMemberId) return;
+    if (!event || !member || state.pendingMemberIds.has(memberId)) return;
     const current = registrationFor(memberId);
-    state.busyMemberId = memberId;
-    setLoading(true);
-    try {
-      if (current?.response === response) {
-        await apiPost("removeResponse", { eventId: event.id, memberId });
-        flash(`${member.displayName} 已取消勾選`);
-      } else {
-        await apiPost("saveResponse", {
+    const previous = current ? { ...current } : null;
+    const removing = current?.response === response;
+    const optimistic = removing
+      ? null
+      : {
+          id: current?.id || `pending-${event.id}-${memberId}`,
           eventId: event.id,
           memberId,
           response,
           companionCount: response === "attending" ? Number(current?.companionCount || 0) : 0,
           note: current?.note || "",
+          updatedAt: new Date().toISOString(),
+        };
+
+    state.pendingMemberIds.add(memberId);
+    replaceRegistration(event.id, memberId, optimistic);
+    renderMembers();
+    renderSummary();
+    flash(
+      removing
+        ? `${member.displayName} 已取消勾選`
+        : `${member.displayName} 已勾選${response === "attending" ? "參加" : "不克參加"}`
+    );
+
+    try {
+      if (removing) {
+        await apiPost("removeResponse", { eventId: event.id, memberId });
+      } else {
+        await apiPost("saveResponse", {
+          eventId: event.id,
+          memberId,
+          response,
+          companionCount: optimistic.companionCount,
+          note: optimistic.note,
         });
-        flash(`${member.displayName} 已勾選${response === "attending" ? "參加" : "不克參加"}`);
       }
-      await loadAll(event.id);
     } catch (error) {
-      flash(error instanceof Error ? error.message : "更新失敗");
+      replaceRegistration(event.id, memberId, previous);
+      renderMembers();
+      renderSummary();
+      flash("同步失敗，已還原勾選，請再試一次");
     } finally {
-      state.busyMemberId = "";
-      setLoading(false);
+      state.pendingMemberIds.delete(memberId);
     }
   }
 
@@ -405,8 +440,27 @@
     event.preventDefault();
     const eventData = currentEvent();
     const values = Object.fromEntries(new FormData(event.currentTarget).entries());
+    if (!eventData || state.pendingMemberIds.has(values.memberId)) return;
+    const previous = registrationFor(values.memberId);
+    const optimistic = {
+      ...(previous || {}),
+      id: previous?.id || `pending-${eventData.id}-${values.memberId}`,
+      eventId: eventData.id,
+      memberId: values.memberId,
+      response: "attending",
+      companionCount: Number(values.companionCount),
+      note: values.note,
+      updatedAt: new Date().toISOString(),
+    };
+
+    state.pendingMemberIds.add(values.memberId);
+    replaceRegistration(eventData.id, values.memberId, optimistic);
+    elements.detailsDialog.classList.add("hidden");
+    renderMembers();
+    renderSummary();
+    flash("攜伴及備註已更新");
+
     try {
-      setLoading(true);
       await apiPost("saveResponse", {
         eventId: eventData.id,
         memberId: values.memberId,
@@ -414,13 +468,13 @@
         companionCount: Number(values.companionCount),
         note: values.note,
       });
-      elements.detailsDialog.classList.add("hidden");
-      await loadAll(eventData.id);
-      flash("攜伴及備註已更新");
     } catch (error) {
-      flash(error instanceof Error ? error.message : "儲存失敗");
+      replaceRegistration(eventData.id, values.memberId, previous ? { ...previous } : null);
+      renderMembers();
+      renderSummary();
+      flash("同步失敗，已還原攜伴及備註，請再試一次");
     } finally {
-      setLoading(false);
+      state.pendingMemberIds.delete(values.memberId);
     }
   });
 
