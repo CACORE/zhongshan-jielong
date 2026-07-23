@@ -8,6 +8,8 @@
 ├── assets/
 │   ├── css/
 │   │   └── styles.css         # 桌面、手機與元件樣式
+│   ├── images/
+│   │   └── rotary-international.png # 扶輪社品牌標誌
 │   └── js/
 │       ├── config.js          # Apps Script 正式網址
 │       ├── api.js             # GET/POST、JSONP 與資料指紋
