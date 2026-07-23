@@ -1,2 +1,2 @@
-// Apps Script 發布完成後，將 /exec 網址貼在引號內。
-window.HAO_JIELONG_API_URL = "PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE";
+// 中山社接龍正式 Apps Script 網頁應用程式網址。
+window.HAO_JIELONG_API_URL = "https://script.google.com/macros/s/AKfycbwiLx4D5FWbxjm_lM-n9FunZeb0foebsCYSHMwK4ZvxVQ33HaPKNAW0QkvAJsH7mZhe/exec";
