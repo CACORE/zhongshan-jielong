@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="description" content="台北中山扶輪社活動回覆">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#102b4e">
+  <title>好接龍｜台北中山扶輪社</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main>
+    <header class="topbar">
+      <a class="brand" href="./" aria-label="活動回覆首頁">
+        <span class="brand-seal">扶</span>
+        <span><strong>好接龍</strong><small>扶輪社活動回覆</small></span>
+      </a>
+      <nav>
+        <button class="ghost-button" id="shareButton" type="button">分享至 LINE</button>
+        <button class="create-button" id="createButton" type="button">＋ 建立活動</button>
+      </nav>
+    </header>
+
+    <section class="hero">
+      <div class="hero-main">
+        <div class="club-line">
+          <span>台北中山扶輪社</span>
+          <span class="status-dot">開放回覆</span>
+          <button class="edit-activity-button" id="editButton" type="button">編輯活動</button>
+        </div>
+        <p class="overline" id="eventOverline">LOADING</p>
+        <h1 id="eventTitle">活動載入中</h1>
+        <div class="meeting-meta">
+          <p><span>日期</span><strong id="eventDate">—</strong></p>
+          <p><span>時間</span><strong id="eventTime">—</strong></p>
+          <p><span>地點</span><strong id="eventLocation">—</strong></p>
+        </div>
+      </div>
+      <aside class="speaker-card">
+        <span class="card-number">活動資訊</span>
+        <div class="quote-mark">“</div>
+        <h2 id="eventTopic">請選擇活動</h2>
+        <p id="eventSpeaker"></p>
+        <div class="gold-rule"></div>
+      </aside>
+    </section>
+
+    <section class="checklist-layout">
+      <div class="checklist-card">
+        <div class="checklist-header">
+          <div>
+            <p class="overline">MEMBER CHECKLIST</p>
+            <h2>找到英文名字，直接勾選</h2>
+            <p>名單可上下捲動；再次點選已勾選的按鈕，就能取消回覆。</p>
+          </div>
+        </div>
+        <div class="member-list" id="memberList" aria-live="polite">
+          <div class="empty-state">正在從 Google Sheet 載入社友名單…</div>
+        </div>
+      </div>
+
+      <aside class="summary-card">
+        <p class="overline">LIVE SUMMARY</p>
+        <h2>回覆概況</h2>
+        <div class="big-stat">
+          <span>參加</span>
+          <strong id="attendingCount">0</strong>
+          <small>位社友</small>
+        </div>
+        <div class="summary-row"><span>不克參加</span><strong id="declinedCount">0</strong></div>
+        <div class="summary-row pending"><span>尚未回覆</span><strong id="pendingCount">0</strong></div>
+        <div class="summary-row"><span>攜伴</span><strong id="companionCount">0</strong></div>
+        <button class="line-summary" id="copySummaryButton" type="button">複製 LINE 回覆摘要</button>
+        <p class="deadline-copy" id="deadlineCopy">未設定回覆截止時間</p>
+      </aside>
+    </section>
+
+    <section class="upcoming">
+      <div class="section-title">
+        <div><p class="overline">ALL ACTIVITIES</p><h2>選擇活動</h2></div>
+      </div>
+      <div class="upcoming-grid" id="activityList"></div>
+    </section>
+
+    <footer>
+      <div class="brand">
+        <span class="brand-seal small">扶</span>
+        <span><strong>好接龍</strong><small>扶輪社活動回覆</small></span>
+      </div>
+      <p>Google Sheet 管理名單，LINE 群組直接勾選。</p>
+    </footer>
+  </main>
+
+  <div class="overlay hidden" id="detailsDialog" role="dialog" aria-modal="true" aria-labelledby="detailsTitle">
+    <form class="sheet" id="detailsForm">
+      <button type="button" class="close" data-close="detailsDialog" aria-label="關閉">×</button>
+      <p class="overline">OPTIONAL DETAILS</p>
+      <h2 id="detailsTitle">是否攜伴及備註</h2>
+      <input type="hidden" name="memberId">
+      <label>是否攜伴
+        <select name="companionCount">
+          <option value="0">不攜伴</option>
+          <option value="1">攜伴 1 位</option>
+          <option value="2">攜伴 2 位</option>
+          <option value="3">攜伴 3 位</option>
+          <option value="4">攜伴 4 位</option>
+        </select>
+      </label>
+      <label>備註
+        <textarea name="note" placeholder="例如飲食需求、晚到或提早離席。"></textarea>
+      </label>
+      <button class="submit-button" type="submit">儲存</button>
+    </form>
+  </div>
+
+  <div class="overlay hidden" id="eventDialog" role="dialog" aria-modal="true" aria-labelledby="eventFormTitle">
+    <form class="sheet create-sheet" id="eventForm">
+      <button type="button" class="close" data-close="eventDialog" aria-label="關閉">×</button>
+      <p class="overline">ACTIVITY SETUP</p>
+      <h2 id="eventFormTitle">建立扶輪社活動</h2>
+      <input type="hidden" name="id">
+      <label>活動類型
+        <select name="eventType">
+          <option value="meeting">每週例會</option>
+          <option value="outing">社遊／大型活動</option>
+        </select>
+      </label>
+      <label>活動名稱<input name="title" required></label>
+      <div class="form-row">
+        <label>開始日期<input name="date" type="date" required></label>
+        <label>結束日期<input name="endDate" type="date" required></label>
+      </div>
+      <div class="form-row">
+        <label>開始時間<input name="startTime" type="time" required></label>
+        <label>結束時間<input name="endTime" type="time"></label>
+      </div>
+      <label>地點<input name="location" required></label>
+      <div class="form-row">
+        <label>社友總數／名額<input name="capacity" type="number" min="1" max="500" required></label>
+        <label>回覆截止<input name="deadline" type="datetime-local"></label>
+      </div>
+      <div class="form-row">
+        <label>主講人<input name="speaker"></label>
+        <label>講題<input name="topic"></label>
+      </div>
+      <label>活動說明<textarea name="notes"></textarea></label>
+      <button class="submit-button" type="submit">儲存活動</button>
+    </form>
+  </div>
+
+  <div class="toast hidden" id="toast" role="status"></div>
+  <div class="loading-bar hidden" id="loadingBar"></div>
+
+  <script src="./config.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
