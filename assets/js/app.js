@@ -273,11 +273,30 @@ async function undoRegistration(eventId, memberId, previous, current) {
   }
 }
 
-async function handleResponse(memberId, response) {
+const responseMutationQueues = new Map();
+const responseMutationVersions = new Map();
+
+function enqueueResponseMutation(memberId, operation) {
+  const previousQueue = responseMutationQueues.get(memberId) || Promise.resolve();
+  const nextQueue = previousQueue.catch(() => {}).then(operation);
+  responseMutationQueues.set(memberId, nextQueue);
+  state.pendingMemberIds.add(memberId);
+
+  const finish = () => {
+    if (responseMutationQueues.get(memberId) !== nextQueue) return;
+    responseMutationQueues.delete(memberId);
+    state.pendingMemberIds.delete(memberId);
+    scheduleBackgroundRefresh();
+  };
+  void nextQueue.then(finish, finish);
+  return nextQueue;
+}
+
+function handleResponse(memberId, response) {
   const event = currentEvent();
   const member = displayedMembers().find((item) => item.id === memberId);
   const actor = currentActor();
-  if (!event || !member || !actor || state.pendingMemberIds.has(memberId)) return;
+  if (!event || !member || !actor) return;
   const current = registrationFor(memberId);
   const previous = current ? { ...current } : null;
   const removing = current?.response === response;
@@ -300,16 +319,20 @@ async function handleResponse(memberId, response) {
         updatedAt: new Date().toISOString(),
       };
 
-  state.pendingMemberIds.add(memberId);
+  const version = (responseMutationVersions.get(memberId) || 0) + 1;
+  responseMutationVersions.set(memberId, version);
   replaceRegistration(event.id, memberId, optimistic);
   renderMemberRow(memberId);
   renderSummary();
-  flash(successMessage);
+  flash(successMessage, 1600);
 
-  try {
-    await nextPaint();
+  const syncRequest = enqueueResponseMutation(memberId, async () => {
     if (removing) {
-      await apiPost("removeResponse", { eventId: event.id, memberId });
+      await apiPost("removeResponse", {
+        eventId: event.id,
+        memberId,
+        actorMemberId: actor.id,
+      });
     } else {
       await apiPost("saveResponse", {
         eventId: event.id,
@@ -319,20 +342,18 @@ async function handleResponse(memberId, response) {
         note: optimistic.note,
         memberName: optimistic.memberName,
         isTemporary: optimistic.isTemporary,
+        actorMemberId: actor.id,
       });
     }
-    flashWithUndo(
-      successMessage,
-      () => undoRegistration(event.id, memberId, previous, optimistic)
-    );
-  } catch {
+  });
+
+  void syncRequest.catch(() => {
+    if (responseMutationVersions.get(memberId) !== version) return;
     replaceRegistration(event.id, memberId, previous);
     renderMemberRow(memberId);
     renderSummary();
     flash("同步失敗，已還原勾選，請再試一次");
-  } finally {
-    state.pendingMemberIds.delete(memberId);
-  }
+  });
 }
 
 function requestResponse(memberId, response) {
