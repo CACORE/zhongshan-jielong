@@ -51,6 +51,7 @@ const elements = {
   identityButton: $("#identityButton"),
   confirmDialog: $("#confirmDialog"),
   confirmMessage: $("#confirmMessage"),
+  confirmCloseButton: $("#confirmCloseButton"),
   confirmCancelButton: $("#confirmCancelButton"),
   confirmActionButton: $("#confirmActionButton"),
   toast: $("#toast"),
@@ -147,15 +148,22 @@ function ensureIdentity() {
 }
 
 let pendingConfirmAction = null;
+let confirmationHistoryActive = false;
 function confirmAction(message, action) {
   elements.confirmMessage.textContent = message;
   pendingConfirmAction = action;
   elements.confirmDialog.classList.remove("hidden");
+  if (!confirmationHistoryActive) {
+    history.pushState({ ...history.state, confirmationDialog: true }, "");
+    confirmationHistoryActive = true;
+  }
 }
 
-function closeConfirmation() {
+function closeConfirmation(fromHistory = false) {
   pendingConfirmAction = null;
   elements.confirmDialog.classList.add("hidden");
+  if (confirmationHistoryActive && !fromHistory) history.back();
+  confirmationHistoryActive = false;
 }
 
 async function loadAll(preferredEventId) {
@@ -536,11 +544,15 @@ elements.identityForm.addEventListener("submit", (event) => {
   flash(`目前身分：${currentActor().displayName}`);
 });
 
-elements.confirmCancelButton.addEventListener("click", closeConfirmation);
+elements.confirmCloseButton.addEventListener("click", () => closeConfirmation());
+elements.confirmCancelButton.addEventListener("click", () => closeConfirmation());
 elements.confirmActionButton.addEventListener("click", () => {
   const action = pendingConfirmAction;
   closeConfirmation();
   if (action) action();
+});
+elements.confirmDialog.addEventListener("click", (event) => {
+  if (event.target === elements.confirmDialog) closeConfirmation();
 });
 
 elements.temporaryForm.addEventListener("submit", async (event) => {
@@ -628,6 +640,14 @@ elements.eventForm.addEventListener("submit", async (event) => {
 document.addEventListener("click", (event) => {
   const closeButton = event.target.closest("[data-close]");
   if (closeButton) document.getElementById(closeButton.dataset.close).classList.add("hidden");
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !elements.confirmDialog.classList.contains("hidden")) {
+    closeConfirmation();
+  }
+});
+window.addEventListener("popstate", () => {
+  if (!elements.confirmDialog.classList.contains("hidden")) closeConfirmation(true);
 });
 
 $("#createButton").addEventListener("click", () => openEventForm(null));
