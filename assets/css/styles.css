@@ -259,11 +259,11 @@ footer p { margin: 0; color: var(--muted); font-size: 10px; }
   transform: translateX(-50%); z-index: 80; padding: 10px 12px 10px 18px;
   border-radius: 99px; background: var(--navy-deep); color: white;
   box-shadow: 0 14px 40px rgba(0,0,0,.24); font-size: 12px; font-weight: 800;
-  display: flex; align-items: center; gap: 12px; text-align: left;
+  display: flex; align-items: center; gap: 12px; text-align: left; pointer-events: none;
 }
 .toast-undo {
   min-height: 34px; padding: 0 13px; border: 0; border-radius: 99px;
-  background: var(--gold); color: var(--navy-deep); font-weight: 900;
+  background: var(--gold); color: var(--navy-deep); font-weight: 900; pointer-events: auto;
 }
 .loading-bar { position: fixed; top: 0; left: 0; height: 3px; z-index: 100; background: var(--gold); animation: loading 1.2s infinite; }
 @keyframes loading { 0% { width: 0; } 70% { width: 75%; } 100% { width: 100%; opacity: 0; } }

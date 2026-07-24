@@ -88,7 +88,7 @@ function flashWithUndo(message, undo) {
   };
   elements.toast.classList.remove("hidden");
   window.clearTimeout(flash.timer);
-  flash.timer = window.setTimeout(() => elements.toast.classList.add("hidden"), 8000);
+  flash.timer = window.setTimeout(() => elements.toast.classList.add("hidden"), 3000);
 }
 
 function setLoading(loading) {
