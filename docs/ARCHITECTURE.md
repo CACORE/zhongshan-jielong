@@ -16,13 +16,18 @@
 │       ├── api.js             # GET/POST、JSONP 與資料指紋
 │       ├── model.js           # 共用狀態、排序與資料正規化
 │       ├── render.js          # 活動、社員、統計與卡片渲染
+│       ├── serial-queue.js     # 同一社員回覆的依序寫入佇列
 │       ├── utils.js           # 日期、跳脫、排序等共用函式
 │       └── app.js             # 表單、點擊、背景同步與流程控制
 ├── apps-script/
 │   ├── Code.gs                # Google Sheet 讀寫 API
 │   └── appsscript.json        # Apps Script 權限與時區
 ├── docs/
-│   └── ARCHITECTURE.md        # 本文件
+│   ├── ARCHITECTURE.md        # 本文件
+│   └── OPERATIONS.md          # 秘書與管理人員維運手冊
+├── scripts/check.mjs          # 零依賴靜態檢查
+├── tests/serial-queue.test.mjs # 快速切換與排隊同步測試
+├── package.json               # npm 檢查與測試指令
 └── README.md                  # 安裝與部署說明
 ```
 
@@ -41,6 +46,7 @@
 - `model.js` 整理資料並維護目前選擇的活動。
 - `render.js` 只負責把目前狀態畫到頁面。
 - `app.js` 接收使用者操作，先做即時畫面回饋，再由 `api.js` 背景寫入。
+- `serial-queue.js` 確保同一社員連續切換回覆時，後端仍按點擊順序寫入；不同社員不互相鎖定。
 - 頁面每 15 秒及重新取得焦點時檢查新資料；資料未改變就不重畫。
 
 ## 常見修改位置
@@ -51,6 +57,7 @@
 | 顏色、大小、手機排版 | `assets/css/styles.css` |
 | Apps Script 網址 | `assets/js/config.js` |
 | 點擊、送出、同步流程 | `assets/js/app.js` |
+| 快速連點的寫入順序 | `assets/js/serial-queue.js` |
 | 活動／社員／統計畫面 | `assets/js/render.js` |
 | 資料排序、臨時人員、目前活動 | `assets/js/model.js` |
 | Google Sheet 欄位與驗證 | `apps-script/Code.gs` |
@@ -70,12 +77,7 @@
 ## 發布前檢查
 
 ```bash
-node --check assets/js/app.js
-node --check assets/js/api.js
-node --check assets/js/model.js
-node --check assets/js/render.js
-node --check assets/js/utils.js
-node --check < apps-script/Code.gs
+npm run verify
 git diff --check
 ```
 

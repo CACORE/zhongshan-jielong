@@ -1,0 +1,10 @@
+{
+  "name": "zhongshan-jielong",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "node scripts/check.mjs",
+    "test": "node --test",
+    "verify": "npm run check && npm test"
+  }
+}

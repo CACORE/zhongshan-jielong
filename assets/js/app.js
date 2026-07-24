@@ -18,6 +18,7 @@ import {
   state,
 } from "./model.js";
 import { createRenderer } from "./render.js";
+import { createSerialQueue } from "./serial-queue.js";
 import { dateRangeLabel, nextPaint, nextThursday } from "./utils.js";
 
 const $ = (selector) => document.querySelector(selector);
@@ -273,24 +274,16 @@ async function undoRegistration(eventId, memberId, previous, current) {
   }
 }
 
-const responseMutationQueues = new Map();
 const responseMutationVersions = new Map();
-
-function enqueueResponseMutation(memberId, operation) {
-  const previousQueue = responseMutationQueues.get(memberId) || Promise.resolve();
-  const nextQueue = previousQueue.catch(() => {}).then(operation);
-  responseMutationQueues.set(memberId, nextQueue);
-  state.pendingMemberIds.add(memberId);
-
-  const finish = () => {
-    if (responseMutationQueues.get(memberId) !== nextQueue) return;
-    responseMutationQueues.delete(memberId);
+const responseMutationQueue = createSerialQueue({
+  onKeyBusy(memberId) {
+    state.pendingMemberIds.add(memberId);
+  },
+  onKeyIdle(memberId) {
     state.pendingMemberIds.delete(memberId);
     scheduleBackgroundRefresh();
-  };
-  void nextQueue.then(finish, finish);
-  return nextQueue;
-}
+  },
+});
 
 function handleResponse(memberId, response) {
   const event = currentEvent();
@@ -326,7 +319,7 @@ function handleResponse(memberId, response) {
   renderSummary();
   flash(successMessage, 1600);
 
-  const syncRequest = enqueueResponseMutation(memberId, async () => {
+  const syncRequest = responseMutationQueue.enqueue(memberId, async () => {
     if (removing) {
       await apiPost("removeResponse", {
         eventId: event.id,

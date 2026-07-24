@@ -15,7 +15,7 @@
 3. 將 `apps-script/Code.gs` 的內容貼入 Apps Script 的 `Code.gs`。
 4. 在 Apps Script 左側「專案設定」開啟顯示 `appsscript.json`，再貼入本專案的 `apps-script/appsscript.json`。
 5. 在函式選單選擇 `setup`，按「執行」，依畫面授權。
-6. 回到 Sheet，會自動出現「活動資料」與「報名紀錄」兩個分頁。
+6. 回到 Sheet，會自動出現「活動資料」、「報名紀錄」與「操作紀錄」三個分頁。
 7. 到「專案設定」→「指令碼屬性」，新增 `ACCESS_CODE`，值填社內通行碼。
 8. 點右上角「部署」→「新增部署」→ 類型選「網頁應用程式」。
 9. 執行身分選「我」，存取權選「任何人」。
@@ -60,3 +60,14 @@
 
 前端、資料模型與後端已分層整理。修改前請先閱讀
 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)，裡面列出各檔案責任、常見修改位置與發布檢查清單。
+
+秘書日常更新名單、通行碼與查看代填紀錄，請閱讀
+[`docs/OPERATIONS.md`](docs/OPERATIONS.md)。
+
+本專案沒有第三方套件。電腦已安裝 Node.js 時，可直接執行：
+
+```bash
+npm run verify
+```
+
+這會檢查所有 JavaScript、Apps Script、必要頁面元件，並測試快速切換回覆的寫入順序。
