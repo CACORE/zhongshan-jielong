@@ -11,6 +11,7 @@
 │   ├── images/
 │   │   └── rotary-international.png # 扶輪社品牌標誌
 │   └── js/
+│       ├── auth.js            # 通行碼與本機操作者身分
 │       ├── config.js          # Apps Script 正式網址
 │       ├── api.js             # GET/POST、JSONP 與資料指紋
 │       ├── model.js           # 共用狀態、排序與資料正規化
@@ -36,6 +37,7 @@
 ```
 
 - 開啟網站時，`api.js` 透過 JSONP 取得社員、活動與報名資料。
+- `auth.js` 將通行碼與操作者 ID 保存在該手機；通行碼仍由 Apps Script 後端驗證。
 - `model.js` 整理資料並維護目前選擇的活動。
 - `render.js` 只負責把目前狀態畫到頁面。
 - `app.js` 接收使用者操作，先做即時畫面回饋，再由 `api.js` 背景寫入。
@@ -54,6 +56,8 @@
 | Google Sheet 欄位與驗證 | `apps-script/Code.gs` |
 
 ## 修改 Google Sheet 資料欄位
+
+`工作表1` A 欄是永久社員 ID（例如 `m001`），C 欄是顯示名稱。新增或重新排序社員時，不可更改既有 ID；報名、操作者與未來頭像都以此 ID 對應。
 
 如需新增活動或報名欄位，必須一起修改：
 
