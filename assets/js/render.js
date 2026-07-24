@@ -49,7 +49,12 @@ export function createRenderer(elements) {
       : current.response === "attending"
         ? `已參加${Number(current.companionCount) ? ` · 攜伴 ${current.companionCount} 位` : ""}`
         : "不克參加";
-    const subtitle = member.isTemporary ? `臨時人員 · ${responseLabel}` : responseLabel;
+    const delegatedLabel =
+      current?.updatedByName && current.updatedById !== member.id
+        ? ` · 由 ${current.updatedByName} 代填`
+        : "";
+    const subtitle =
+      `${member.isTemporary ? "臨時人員 · " : ""}${responseLabel}${delegatedLabel}`;
     return `
       <article class="member-row ${status} ${member.isTemporary ? "temporary" : ""}" data-member-id="${escapeHtml(member.id)}">
         <span class="member-number">${String(index + 1).padStart(2, "0")}</span>

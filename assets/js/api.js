@@ -1,4 +1,5 @@
 import { API_URL } from "./config.js";
+import { getAccessCode, getActorMemberId } from "./auth.js";
 
 export function serverFingerprint(data) {
   return JSON.stringify([
@@ -31,7 +32,13 @@ export async function apiGet() {
       cleanup();
       reject(new Error("Google Sheet 資料載入失敗"));
     };
-    script.src = `${API_URL}?action=bootstrap&prefix=${encodeURIComponent(callbackName)}&_=${Date.now()}`;
+    const params = new URLSearchParams({
+      action: "bootstrap",
+      prefix: callbackName,
+      accessCode: getAccessCode(),
+      _: String(Date.now()),
+    });
+    script.src = `${API_URL}?${params.toString()}`;
     document.head.appendChild(script);
   });
 }
@@ -39,7 +46,12 @@ export async function apiGet() {
 export async function apiPost(action, payload) {
   await fetch(API_URL, {
     method: "POST",
-    body: JSON.stringify({ action, ...payload }),
+    body: JSON.stringify({
+      action,
+      accessCode: getAccessCode(),
+      actorMemberId: getActorMemberId(),
+      ...payload,
+    }),
     mode: "no-cors",
     redirect: "follow",
     keepalive: true,

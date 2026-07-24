@@ -1,6 +1,14 @@
 import { API_URL } from "./config.js";
 import { apiGet, apiPost, serverFingerprint } from "./api.js";
 import {
+  clearAccessCode,
+  clearActorMemberId,
+  getAccessCode,
+  getActorMemberId,
+  setAccessCode,
+  setActorMemberId,
+} from "./auth.js";
+import {
   currentEvent,
   currentRegistrations,
   displayedMembers,
@@ -35,7 +43,19 @@ const elements = {
   eventDialog: $("#eventDialog"),
   eventForm: $("#eventForm"),
   eventFormTitle: $("#eventFormTitle"),
+  accessDialog: $("#accessDialog"),
+  accessForm: $("#accessForm"),
+  accessError: $("#accessError"),
+  identityDialog: $("#identityDialog"),
+  identityForm: $("#identityForm"),
+  identityButton: $("#identityButton"),
+  confirmDialog: $("#confirmDialog"),
+  confirmMessage: $("#confirmMessage"),
+  confirmCancelButton: $("#confirmCancelButton"),
+  confirmActionButton: $("#confirmActionButton"),
   toast: $("#toast"),
+  toastMessage: $("#toastMessage"),
+  toastUndoButton: $("#toastUndoButton"),
   loadingBar: $("#loadingBar"),
 };
 
@@ -46,11 +66,28 @@ const {
   renderSummary,
 } = createRenderer(elements);
 
-function flash(message) {
-  elements.toast.textContent = message;
+function flash(message, duration = 3200) {
+  elements.toastMessage.textContent = message;
+  elements.toastUndoButton.classList.add("hidden");
+  elements.toastUndoButton.onclick = null;
   elements.toast.classList.remove("hidden");
   window.clearTimeout(flash.timer);
-  flash.timer = window.setTimeout(() => elements.toast.classList.add("hidden"), 3200);
+  flash.timer = window.setTimeout(() => elements.toast.classList.add("hidden"), duration);
+}
+
+function flashWithUndo(message, undo) {
+  elements.toastMessage.textContent = message;
+  elements.toastUndoButton.classList.remove("hidden");
+  elements.toastUndoButton.onclick = async () => {
+    elements.toastUndoButton.disabled = true;
+    elements.toastUndoButton.classList.add("hidden");
+    window.clearTimeout(flash.timer);
+    await undo();
+    elements.toastUndoButton.disabled = false;
+  };
+  elements.toast.classList.remove("hidden");
+  window.clearTimeout(flash.timer);
+  flash.timer = window.setTimeout(() => elements.toast.classList.add("hidden"), 8000);
 }
 
 function setLoading(loading) {
@@ -64,12 +101,73 @@ function updateUrl() {
   history.replaceState({}, "", url);
 }
 
+function showAccessDialog(showError = false) {
+  elements.accessError.classList.toggle("hidden", !showError);
+  elements.accessDialog.classList.remove("hidden");
+  window.setTimeout(() => elements.accessForm.elements.accessCode.focus(), 0);
+}
+
+function currentActor() {
+  const actorId = getActorMemberId();
+  return state.members.find((member) => member.id === actorId) || null;
+}
+
+function updateIdentityButton() {
+  const actor = currentActor();
+  if (!actor) {
+    elements.identityButton.classList.add("hidden");
+    return;
+  }
+  elements.identityButton.textContent = `目前：${actor.displayName}`;
+  elements.identityButton.classList.remove("hidden");
+}
+
+function openIdentityForm() {
+  const currentId = getActorMemberId();
+  const select = elements.identityForm.elements.actorMemberId;
+  select.innerHTML = '<option value="">請選擇英文名字</option>';
+  state.members.forEach((member) => {
+    const option = document.createElement("option");
+    option.value = member.id;
+    option.textContent = member.displayName;
+    option.selected = member.id === currentId;
+    select.appendChild(option);
+  });
+  elements.identityDialog.classList.remove("hidden");
+}
+
+function ensureIdentity() {
+  if (currentActor()) {
+    updateIdentityButton();
+    return true;
+  }
+  clearActorMemberId();
+  openIdentityForm();
+  return false;
+}
+
+let pendingConfirmAction = null;
+function confirmAction(message, action) {
+  elements.confirmMessage.textContent = message;
+  pendingConfirmAction = action;
+  elements.confirmDialog.classList.remove("hidden");
+}
+
+function closeConfirmation() {
+  pendingConfirmAction = null;
+  elements.confirmDialog.classList.add("hidden");
+}
+
 async function loadAll(preferredEventId) {
   if (!API_URL || API_URL.includes("PASTE_YOUR")) {
     elements.memberList.innerHTML =
       '<div class="empty-state">網站後端尚未完成連接。請先依 README 發布 Apps Script，再設定 config.js。</div>';
     elements.eventTitle.textContent = "等待連接 Google Sheet";
-    return;
+    return false;
+  }
+  if (!getAccessCode()) {
+    showAccessDialog(false);
+    return false;
   }
   setLoading(true);
   try {
@@ -80,10 +178,20 @@ async function loadAll(preferredEventId) {
     normalizeData(data);
     updateUrl();
     render();
+    elements.accessDialog.classList.add("hidden");
+    ensureIdentity();
+    return true;
   } catch (error) {
-    flash(error instanceof Error ? error.message : "資料載入失敗");
+    const message = error instanceof Error ? error.message : "資料載入失敗";
+    if (message === "ACCESS_REQUIRED") {
+      clearAccessCode();
+      showAccessDialog(true);
+      return false;
+    }
+    flash(message);
     elements.memberList.innerHTML =
       '<div class="empty-state">暫時無法載入社友名單，請重新整理後再試一次。</div>';
+    return false;
   } finally {
     setLoading(false);
   }
@@ -98,7 +206,14 @@ async function refreshInBackground() {
   ) return;
   try {
     const data = await apiGet();
-    if (!data.ok || state.pendingMemberIds.size > 0) return;
+    if (!data.ok) {
+      if (data.error === "ACCESS_REQUIRED") {
+        clearAccessCode();
+        showAccessDialog(true);
+      }
+      return;
+    }
+    if (state.pendingMemberIds.size > 0) return;
     const fingerprint = serverFingerprint(data);
     if (fingerprint === state.lastServerFingerprint) return;
     state.lastServerFingerprint = fingerprint;
@@ -118,13 +233,49 @@ function scheduleBackgroundRefresh() {
   }, 250);
 }
 
+async function undoRegistration(eventId, memberId, previous, current) {
+  if (state.pendingMemberIds.has(memberId)) return;
+  state.pendingMemberIds.add(memberId);
+  replaceRegistration(eventId, memberId, previous ? { ...previous } : null);
+  renderMemberRow(memberId);
+  renderSummary();
+  try {
+    await nextPaint();
+    if (previous) {
+      await apiPost("saveResponse", {
+        eventId,
+        memberId,
+        response: previous.response,
+        companionCount: previous.companionCount,
+        note: previous.note,
+        memberName: previous.memberName,
+        isTemporary: previous.isTemporary,
+      });
+    } else {
+      await apiPost("removeResponse", { eventId, memberId });
+    }
+    flash("已復原上一個操作");
+  } catch {
+    replaceRegistration(eventId, memberId, current ? { ...current } : null);
+    renderMemberRow(memberId);
+    renderSummary();
+    flash("復原失敗，請重新整理後再試一次");
+  } finally {
+    state.pendingMemberIds.delete(memberId);
+  }
+}
+
 async function handleResponse(memberId, response) {
   const event = currentEvent();
   const member = displayedMembers().find((item) => item.id === memberId);
-  if (!event || !member || state.pendingMemberIds.has(memberId)) return;
+  const actor = currentActor();
+  if (!event || !member || !actor || state.pendingMemberIds.has(memberId)) return;
   const current = registrationFor(memberId);
   const previous = current ? { ...current } : null;
   const removing = current?.response === response;
+  const successMessage = removing
+    ? `${member.displayName} 已取消勾選`
+    : `${member.displayName} 已勾選${response === "attending" ? "參加" : "不克參加"}`;
   const optimistic = removing
     ? null
     : {
@@ -136,6 +287,8 @@ async function handleResponse(memberId, response) {
         note: current?.note || "",
         memberName: member.isTemporary ? member.displayName : "",
         isTemporary: Boolean(member.isTemporary),
+        updatedById: actor.id,
+        updatedByName: actor.displayName,
         updatedAt: new Date().toISOString(),
       };
 
@@ -143,11 +296,7 @@ async function handleResponse(memberId, response) {
   replaceRegistration(event.id, memberId, optimistic);
   renderMemberRow(memberId);
   renderSummary();
-  flash(
-    removing
-      ? `${member.displayName} 已取消勾選`
-      : `${member.displayName} 已勾選${response === "attending" ? "參加" : "不克參加"}`
-  );
+  flash(successMessage);
 
   try {
     await nextPaint();
@@ -164,6 +313,10 @@ async function handleResponse(memberId, response) {
         isTemporary: optimistic.isTemporary,
       });
     }
+    flashWithUndo(
+      successMessage,
+      () => undoRegistration(event.id, memberId, previous, optimistic)
+    );
   } catch {
     replaceRegistration(event.id, memberId, previous);
     renderMemberRow(memberId);
@@ -172,6 +325,24 @@ async function handleResponse(memberId, response) {
   } finally {
     state.pendingMemberIds.delete(memberId);
   }
+}
+
+function requestResponse(memberId, response) {
+  const actor = currentActor();
+  const target = displayedMembers().find((member) => member.id === memberId);
+  if (!actor) return openIdentityForm();
+  if (!target) return;
+  if (actor.id === target.id) {
+    void handleResponse(memberId, response);
+    return;
+  }
+  const actionLabel = registrationFor(memberId)?.response === response
+    ? "取消目前回覆"
+    : `勾選「${response === "attending" ? "參加" : "不克參加"}」`;
+  confirmAction(
+    `你目前是 ${actor.displayName}，確定要替 ${target.displayName} ${actionLabel}嗎？`,
+    () => void handleResponse(memberId, response)
+  );
 }
 
 function openDetails(memberId) {
@@ -185,7 +356,20 @@ function openDetails(memberId) {
   elements.detailsDialog.classList.remove("hidden");
 }
 
+function requestDetails(memberId) {
+  const actor = currentActor();
+  const target = displayedMembers().find((member) => member.id === memberId);
+  if (!actor) return openIdentityForm();
+  if (!target) return;
+  if (actor.id === target.id) return openDetails(memberId);
+  confirmAction(
+    `你目前是 ${actor.displayName}，確定要替 ${target.displayName} 修改攜伴及備註嗎？`,
+    () => openDetails(memberId)
+  );
+}
+
 function openTemporaryForm() {
+  if (!currentActor()) return openIdentityForm();
   if (!currentEvent()) return flash("請先建立活動");
   elements.temporaryForm.reset();
   elements.temporaryDialog.classList.remove("hidden");
@@ -194,9 +378,10 @@ function openTemporaryForm() {
 
 async function saveTemporaryMember(form) {
   const eventData = currentEvent();
+  const actor = currentActor();
   const values = Object.fromEntries(new FormData(form).entries());
   const memberName = String(values.memberName || "").trim();
-  if (!eventData || !memberName) throw new Error("請填寫臨時人員英文名");
+  if (!eventData || !actor || !memberName) throw new Error("請填寫臨時人員英文名");
 
   const memberId = crypto.randomUUID
     ? `temporary-${crypto.randomUUID()}`
@@ -210,6 +395,8 @@ async function saveTemporaryMember(form) {
     note: String(values.note || "").trim(),
     memberName,
     isTemporary: true,
+    updatedById: actor.id,
+    updatedByName: actor.displayName,
     updatedAt: new Date().toISOString(),
   };
 
@@ -223,6 +410,10 @@ async function saveTemporaryMember(form) {
   try {
     await nextPaint();
     await apiPost("saveResponse", registration);
+    flashWithUndo(
+      `${memberName} 已新增為臨時人員`,
+      () => undoRegistration(eventData.id, memberId, null, registration)
+    );
   } catch {
     replaceRegistration(eventData.id, memberId, null);
     renderMembers();
@@ -234,6 +425,7 @@ async function saveTemporaryMember(form) {
 }
 
 function openEventForm(event) {
+  if (!currentActor()) return openIdentityForm();
   const form = elements.eventForm;
   form.reset();
   elements.eventFormTitle.textContent = event ? "編輯活動資料" : "建立扶輪社活動";
@@ -307,8 +499,8 @@ elements.memberList.addEventListener("click", (event) => {
   if (!row) return;
   const memberId = row.dataset.memberId;
   const responseButton = event.target.closest("[data-response]");
-  if (responseButton) void handleResponse(memberId, responseButton.dataset.response);
-  if (event.target.closest("[data-details]")) openDetails(memberId);
+  if (responseButton) requestResponse(memberId, responseButton.dataset.response);
+  if (event.target.closest("[data-details]")) requestDetails(memberId);
 });
 
 elements.activityList.addEventListener("click", (event) => {
@@ -320,6 +512,35 @@ elements.activityList.addEventListener("click", (event) => {
     scrollTo({ top: 0, behavior: "smooth" });
   }
   if (event.target.closest("#bottomCreateButton")) openEventForm(null);
+});
+
+elements.accessForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const button = event.currentTarget.querySelector('[type="submit"]');
+  const code = event.currentTarget.elements.accessCode.value.trim();
+  button.disabled = true;
+  elements.accessError.classList.add("hidden");
+  setAccessCode(code);
+  const loaded = await loadAll();
+  if (!loaded) event.currentTarget.elements.accessCode.select();
+  button.disabled = false;
+});
+
+elements.identityForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const actorId = event.currentTarget.elements.actorMemberId.value;
+  if (!state.members.some((member) => member.id === actorId)) return;
+  setActorMemberId(actorId);
+  elements.identityDialog.classList.add("hidden");
+  updateIdentityButton();
+  flash(`目前身分：${currentActor().displayName}`);
+});
+
+elements.confirmCancelButton.addEventListener("click", closeConfirmation);
+elements.confirmActionButton.addEventListener("click", () => {
+  const action = pendingConfirmAction;
+  closeConfirmation();
+  if (action) action();
 });
 
 elements.temporaryForm.addEventListener("submit", async (event) => {
@@ -338,8 +559,9 @@ elements.temporaryForm.addEventListener("submit", async (event) => {
 elements.detailsForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const eventData = currentEvent();
+  const actor = currentActor();
   const values = Object.fromEntries(new FormData(event.currentTarget).entries());
-  if (!eventData || state.pendingMemberIds.has(values.memberId)) return;
+  if (!eventData || !actor || state.pendingMemberIds.has(values.memberId)) return;
   const previous = registrationFor(values.memberId);
   const optimistic = {
     ...(previous || {}),
@@ -351,6 +573,8 @@ elements.detailsForm.addEventListener("submit", async (event) => {
     note: values.note,
     memberName: previous?.memberName || "",
     isTemporary: Boolean(previous?.isTemporary),
+    updatedById: actor.id,
+    updatedByName: actor.displayName,
     updatedAt: new Date().toISOString(),
   };
 
@@ -372,6 +596,10 @@ elements.detailsForm.addEventListener("submit", async (event) => {
       memberName: optimistic.memberName,
       isTemporary: optimistic.isTemporary,
     });
+    flashWithUndo(
+      "攜伴及備註已更新",
+      () => undoRegistration(eventData.id, values.memberId, previous, optimistic)
+    );
   } catch {
     replaceRegistration(eventData.id, values.memberId, previous ? { ...previous } : null);
     renderMemberRow(values.memberId);
@@ -409,6 +637,7 @@ $("#editButton").addEventListener(
 );
 $("#shareButton").addEventListener("click", share);
 $("#copySummaryButton").addEventListener("click", share);
+elements.identityButton.addEventListener("click", openIdentityForm);
 
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden) scheduleBackgroundRefresh();

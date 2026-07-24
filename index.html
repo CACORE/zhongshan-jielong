@@ -7,7 +7,7 @@
   <meta name="robots" content="noindex, nofollow">
   <meta name="theme-color" content="#102b4e">
   <title>中山社接龍｜台北中山扶輪社</title>
-  <link rel="stylesheet" href="./assets/css/styles.css?v=20260723-6">
+  <link rel="stylesheet" href="./assets/css/styles.css?v=20260724-1">
 </head>
 <body>
   <main>
@@ -17,6 +17,7 @@
         <span><strong>中山社接龍</strong><small>扶輪社活動回覆</small></span>
       </a>
       <nav>
+        <button class="identity-button hidden" id="identityButton" type="button">目前身分</button>
         <button class="ghost-button" id="shareButton" type="button">分享至 LINE</button>
         <button class="create-button" id="createButton" type="button">＋ 建立活動</button>
       </nav>
@@ -92,6 +93,45 @@
     </footer>
   </main>
 
+  <div class="overlay hidden" id="accessDialog" role="dialog" aria-modal="true" aria-labelledby="accessTitle">
+    <form class="sheet access-sheet" id="accessForm">
+      <img class="access-logo" src="./assets/images/rotary-international.png" width="72" height="72" alt="扶輪社標誌">
+      <p class="overline">CLUB ACCESS</p>
+      <h2 id="accessTitle">輸入社內通行碼</h2>
+      <p class="form-help">通行碼會記在這支手機，下次開啟不必重新輸入。</p>
+      <label>社內通行碼
+        <input name="accessCode" type="password" inputmode="numeric" autocomplete="one-time-code" minlength="6" maxlength="12" required>
+      </label>
+      <p class="form-error hidden" id="accessError">通行碼不正確，請再試一次。</p>
+      <button class="submit-button" type="submit">進入中山社接龍</button>
+    </form>
+  </div>
+
+  <div class="overlay hidden" id="identityDialog" role="dialog" aria-modal="true" aria-labelledby="identityTitle">
+    <form class="sheet" id="identityForm">
+      <button type="button" class="close" data-close="identityDialog" aria-label="關閉">×</button>
+      <p class="overline">YOUR IDENTITY</p>
+      <h2 id="identityTitle">請選擇你是誰</h2>
+      <p class="form-help">只需選擇一次；代填別人時會顯示你的名字。</p>
+      <label>我的英文名字
+        <select name="actorMemberId" required></select>
+      </label>
+      <button class="submit-button" type="submit">確認身分</button>
+    </form>
+  </div>
+
+  <div class="overlay hidden" id="confirmDialog" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+    <div class="sheet confirm-sheet">
+      <p class="overline">CONFIRM ACTION</p>
+      <h2 id="confirmTitle">確認代填</h2>
+      <p class="confirm-message" id="confirmMessage"></p>
+      <div class="confirm-actions">
+        <button class="ghost-button" id="confirmCancelButton" type="button">取消</button>
+        <button class="create-button" id="confirmActionButton" type="button">確定代填</button>
+      </div>
+    </div>
+  </div>
+
   <div class="overlay hidden" id="detailsDialog" role="dialog" aria-modal="true" aria-labelledby="detailsTitle">
     <form class="sheet" id="detailsForm">
       <button type="button" class="close" data-close="detailsDialog" aria-label="關閉">×</button>
@@ -164,9 +204,12 @@
     </form>
   </div>
 
-  <div class="toast hidden" id="toast" role="status"></div>
+  <div class="toast hidden" id="toast" role="status">
+    <span id="toastMessage"></span>
+    <button class="toast-undo hidden" id="toastUndoButton" type="button">復原</button>
+  </div>
   <div class="loading-bar hidden" id="loadingBar"></div>
 
-  <script type="module" src="./assets/js/app.js?v=20260723-5"></script>
+  <script type="module" src="./assets/js/app.js?v=20260724-1"></script>
 </body>
 </html>
